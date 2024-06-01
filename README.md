@@ -1,2 +1,2 @@
-# go-deep-copy
+# Deep copy
 Create a deep copy of any variable.
