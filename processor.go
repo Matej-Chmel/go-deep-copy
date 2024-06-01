@@ -13,7 +13,7 @@ type processor struct {
 
 func newProcessor(v *r.Value) processor {
 	p := processor{stack: gs.Stack[*item]{}}
-	p.push(none, nil, 0, v)
+	p.push(none, v)
 	return p
 }
 
@@ -43,8 +43,8 @@ func (p *processor) finalize(it *item) {
 	}
 }
 
-func (p *processor) push(flag int, field *r.Value, ix int, val *r.Value) {
-	p.stack.Push(newItem(flag, field, ix, val))
+func (p *processor) push(flag int, val *r.Value) {
+	p.stack.Push(newItem(flag, nil, 0, val))
 }
 
 func (p *processor) result() *r.Value {
@@ -70,6 +70,11 @@ func (p *processor) run() {
 }
 
 func (p *processor) processItem(it *item) {
+	if it.flag == structData {
+		p.processStruct(it)
+		return
+	}
+
 	kind := it.val.Kind()
 
 	switch kind {
@@ -145,7 +150,7 @@ func (p *processor) processArray(it *item, isArray bool) {
 
 	if it.field == nil {
 		field := it.val.Index(it.ix)
-		p.push(none, nil, 0, &field)
+		p.push(none, &field)
 	} else {
 		it.newVal.Index(it.ix).Set(*it.field)
 		it.field = nil
@@ -183,7 +188,7 @@ func (p *processor) processMap(it *item) {
 
 	if it.flag == keyNext {
 		if it.field == nil {
-			p.push(none, nil, 0, &it.keys[it.ix])
+			p.push(none, &it.keys[it.ix])
 		} else {
 			it.flag = valNext
 		}
@@ -202,14 +207,59 @@ func (p *processor) processMap(it *item) {
 
 func (p *processor) processPtr(it *item) {
 	if it.flag == none {
+		if it.val.Kind() == r.Struct {
+			elem := it.val.Elem()
+			it.val = &elem
+			it.newVal = newVal(it.val)
+			it.flag = structData
+			return
+		}
+
 		elem := it.val.Elem()
 		it.newVal = newPtr(&elem)
-		p.push(none, nil, 0, &elem)
+		p.push(none, &elem)
 		it.flag = valNext
 	} else if it.flag == valNext && it.field != nil {
 		it.newVal.Elem().Set(*it.field)
 		p.finalize(it)
 	}
+}
+
+func (p *processor) processString(it *item) {
+	it.newVal.SetString(it.val.String())
+}
+
+func (p *processor) processStruct(it *item) {
+	if it.flag != structData {
+		tmp := newPtr(it.val)
+		tmp.Elem().Set(*it.val)
+		elem := tmp.Elem()
+		it.val = &elem
+		it.newVal = newVal(it.val)
+		it.flag = structData
+	}
+
+	if it.ix == it.val.NumField() {
+		p.finalize(it)
+		return
+	}
+
+	if it.field == nil {
+		if oldField := it.val.Field(it.ix); oldField.CanInterface() {
+			p.push(none, &oldField)
+		}
+	} else {
+		if newField := it.newVal.Field(it.ix); newField.CanSet() {
+			newField.Set(*it.field)
+		}
+
+		it.field = nil
+		it.ix++
+	}
+}
+
+func (p *processor) processUint(it *item) {
+	it.newVal.SetUint(it.val.Uint())
 }
 
 func (p *processor) processUintptr(it *item) {
@@ -219,16 +269,4 @@ func (p *processor) processUintptr(it *item) {
 func (p *processor) processUnsafePtr(it *item) {
 	v := it.val.Pointer()
 	it.newVal.SetPointer(unsafe.Pointer(v))
-}
-
-func (p *processor) processString(it *item) {
-	it.newVal.SetString(it.val.String())
-}
-
-func (p *processor) processStruct(it *item) {
-
-}
-
-func (p *processor) processUint(it *item) {
-	it.newVal.SetUint(it.val.Uint())
 }

@@ -41,7 +41,7 @@ func checkPtr[T any](data T, t *testing.T) {
 }
 
 func throw(t *testing.T, format string, data ...any) {
-	_, _, line, ok := runtime.Caller(2)
+	_, _, line, ok := runtime.Caller(3)
 	reason := fmt.Sprintf(format, data...)
 
 	if ok {
@@ -115,4 +115,34 @@ func TestPtr(t *testing.T) {
 
 	checkPtr(uintptr(0x12345678), t)
 	checkPtr(unsafe.Pointer(uintptr(0x45678902)), t)
+}
+
+type Example struct {
+	A int
+	B string
+	C rune
+}
+
+type NestedExample struct {
+	Example
+	B string
+	C rune
+}
+
+type SliceExample struct {
+	Bytes []uint16
+	Ints  []int
+}
+
+func TestStruct(t *testing.T) {
+	a := Example{12, "hello", '*'}
+	b := NestedExample{Example{34, "world", '%'}, "super", 'X'}
+	c := SliceExample{[]uint16{40, 20}, []int{1, 2, 3}}
+
+	check(a, t)
+	checkPtr(a, t)
+	check(b, t)
+	checkPtr(b, t)
+	check(c, t)
+	checkPtr(c, t)
 }

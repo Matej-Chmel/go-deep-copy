@@ -17,6 +17,7 @@ const (
 	none = iota
 	keyNext
 	result
+	structData
 	valNext
 )
 
