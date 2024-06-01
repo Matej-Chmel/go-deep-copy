@@ -202,12 +202,13 @@ func (p *processor) processMap(it *item) {
 
 func (p *processor) processPtr(it *item) {
 	if it.flag == none {
-		it.newVal = newPtr(it.val)
-		p.push(none, nil, 0, it.val)
+		elem := it.val.Elem()
+		it.newVal = newPtr(&elem)
+		p.push(none, nil, 0, &elem)
 		it.flag = valNext
-		return
 	} else if it.flag == valNext && it.field != nil {
 		it.newVal.Elem().Set(*it.field)
+		p.finalize(it)
 	}
 }
 
