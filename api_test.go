@@ -18,7 +18,7 @@ func checkImpl[T any](data T, t *testing.T) {
 		copyAddr := unsafe.Pointer(&dataCopy)
 
 		if dataAddr == copyAddr {
-			throw(t, "Same address %p", dataAddr)
+			throw(t, 3, "Same address %p", dataAddr)
 		}
 	}
 
@@ -29,7 +29,7 @@ func checkImpl[T any](data T, t *testing.T) {
 		return
 	}
 
-	throw(t, "%s != %s", actual, expected)
+	throw(t, 3, "%s != %s", actual, expected)
 }
 
 func check[T any](data T, t *testing.T) {
@@ -40,8 +40,8 @@ func checkPtr[T any](data T, t *testing.T) {
 	checkImpl(&data, t)
 }
 
-func throw(t *testing.T, format string, data ...any) {
-	_, _, line, ok := runtime.Caller(3)
+func throw(t *testing.T, skip int, format string, data ...any) {
+	_, _, line, ok := runtime.Caller(skip)
 	reason := fmt.Sprintf(format, data...)
 
 	if ok {
@@ -145,4 +145,35 @@ func TestStruct(t *testing.T) {
 	checkPtr(b, t)
 	check(c, t)
 	checkPtr(c, t)
+}
+
+type Unexported struct {
+	a int
+	B string
+}
+
+func TestExport(t *testing.T) {
+	e := Example{A: 1, B: "hello", C: 'a'}
+	u := Unexported{a: 1, B: "hello"}
+
+	eX := gd.IsFullyExported(e)
+	eXP := gd.IsFullyExported(&e)
+	uX := gd.IsFullyExported(u)
+	uXP := gd.IsFullyExported(&u)
+
+	if !eX {
+		throw(t, 1, "Example should be fully exported")
+	}
+
+	if !eXP {
+		throw(t, 1, "&Example should be fully exported")
+	}
+
+	if uX {
+		throw(t, 1, "Unexported should NOT be fully exported")
+	}
+
+	if uXP {
+		throw(t, 1, "&Unexported should NOT be fully exported")
+	}
 }
