@@ -2,7 +2,6 @@ package internal
 
 import (
 	r "reflect"
-	"unsafe"
 
 	gs "github.com/Matej-Chmel/go-generic-stack"
 )
@@ -70,34 +69,21 @@ func (w *CopyWriter) copyBool(val *r.Value) {
 
 // Attempts to copy a built-in type.
 // Returns true if val is of a built-in type.
-func (w *CopyWriter) copyBuiltInType(val *r.Value) bool {
+func (w *CopyWriter) copyBuiltInType(val *r.Value) {
 	switch kind := val.Kind(); kind {
-	case r.Bool:
-		w.copyBool(val)
-	case r.Complex64, r.Complex128:
-		w.copyComplex(val)
-	case r.Float32, r.Float64:
-		w.copyFloat(val)
-	case r.Int, r.Int8, r.Int16, r.Int32, r.Int64:
-		w.copyInt(val)
-	case r.String:
-		w.copyString(val)
-	case r.Uint, r.Uint8, r.Uint16, r.Uint32, r.Uint64:
-		w.copyUint(val)
-	case r.Uintptr:
-		w.copyUintptr(val)
-	case r.UnsafePointer:
-		w.copyUnsafePtr(val)
-	default:
-		return false
+	case r.Bool, r.Complex64, r.Complex128, r.Float32, r.Float64,
+		r.Int, r.Int8, r.Int16, r.Int32, r.Int64, r.String, r.Uint,
+		r.Uint8, r.Uint16, r.Uint32, r.Uint64, r.Uintptr, r.UnsafePointer:
+
+		// Copy all data from the original Value
+		aCopy := *val
+		w.products.Push(&aCopy)
+		return
 	}
 
-	return true
-}
-
-// Copy a complex number
-func (w *CopyWriter) copyComplex(val *r.Value) {
-	w.products.Top().SetComplex(val.Complex())
+	// This item cannot be copied,
+	// product is equal to the original work item
+	w.products.Push(val)
 }
 
 // Attempts to copy a composite type.
@@ -122,16 +108,6 @@ func (w *CopyWriter) copyCompositeType(it *item) bool {
 	return true
 }
 
-// Copy a floating-point number
-func (w *CopyWriter) copyFloat(val *r.Value) {
-	w.products.Top().SetFloat(val.Float())
-}
-
-// Copy a signed integer
-func (w *CopyWriter) copyInt(val *r.Value) {
-	w.products.Top().SetInt(val.Int())
-}
-
 // Copy a work item
 func (w *CopyWriter) copyItem(it *item) {
 	if w.copyCompositeType(it) {
@@ -141,17 +117,7 @@ func (w *CopyWriter) copyItem(it *item) {
 	// This item will be processed in a single pass,
 	// pop it from stack
 	w.work.Pop()
-
-	// Push an instance with a default value onto the stack
-	val := it.val
-	w.products.Push(newValue(val))
-
-	if w.copyBuiltInType(val) {
-		return
-	}
-
-	// This item cannot be copied, product is equal to the original work item
-	w.replaceProduct(val)
+	w.copyBuiltInType(it.val)
 }
 
 // Copy a map
@@ -214,17 +180,14 @@ func (w *CopyWriter) copyPointer(it *item) {
 	}
 }
 
-// Copy a string
-func (w *CopyWriter) copyString(val *r.Value) {
-	w.products.Top().SetString(val.String())
-}
-
 // Copy a struct
 func (w *CopyWriter) copyStruct(it *item) {
 	val := it.val
 
 	if it.flagOrIndex == None {
-		// This item wasn't processed yet
+		// This item wasn't processed yet, initialize flags
+		initFlagOffset()
+
 		// Push an instance with default values onto the stack
 		w.products.Push(newValue(val))
 		it.flagOrIndex = 0
@@ -232,43 +195,26 @@ func (w *CopyWriter) copyStruct(it *item) {
 
 	if it.flagOrIndex > 0 {
 		// Set previous field
-		prev := w.products.PopAndReturn()
-		w.products.Top().Field(it.flagOrIndex - 1).Set(*prev)
+		prevData := w.products.PopAndReturn()
+		prevField := w.products.Top().Field(it.flagOrIndex - 1)
+
+		// Disable read-only mode to set a potentionally unexported field
+		disableRO(&prevField)
+		prevField.Set(*prevData)
 	}
 
-	numFields := val.NumField()
-
-	for it.flagOrIndex < numFields {
-		field := val.Field(it.flagOrIndex)
-		it.flagOrIndex++
-
-		if field.CanInterface() {
-			// Only exported fields can be deep copied
-			w.pushWork(None, &field)
-			return
-		}
-	}
-
-	if it.flagOrIndex == numFields {
+	if it.flagOrIndex == val.NumField() {
 		// All fields were processed
 		w.work.Pop()
+		return
 	}
-}
 
-// Copy an unsigned integer
-func (w *CopyWriter) copyUint(val *r.Value) {
-	w.products.Top().SetUint(val.Uint())
-}
+	field := val.Field(it.flagOrIndex)
 
-// Copy an unsingned pointer
-func (w *CopyWriter) copyUintptr(val *r.Value) {
-	w.products.Top().SetUint(val.Uint())
-}
-
-// Copy an unsafe pointer
-func (w *CopyWriter) copyUnsafePtr(val *r.Value) {
-	v := val.Pointer()
-	w.products.Top().SetPointer(unsafe.Pointer(v))
+	// Disable read-only mode to read a potentionally unexported field
+	disableRO(&field)
+	w.pushWork(None, &field)
+	it.flagOrIndex++
 }
 
 // Copy all work items and return the single remaining product
@@ -283,9 +229,4 @@ func (w *CopyWriter) CopyWork() *r.Value {
 // Push new work item on top of the stack
 func (w *CopyWriter) pushWork(flagOrIndex int, val *r.Value) {
 	w.work.Push(newItem(flagOrIndex, val))
-}
-
-// Replace the top product with another
-func (w *CopyWriter) replaceProduct(val *r.Value) {
-	*w.products.TopPointer() = val
 }

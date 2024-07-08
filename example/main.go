@@ -7,7 +7,7 @@ import (
 )
 
 type Example struct {
-	Flag     bool
+	flag     bool
 	Node1    Node
 	Node2    Node
 	IntSlice []int
@@ -15,16 +15,16 @@ type Example struct {
 
 type Node struct {
 	Next *Node
-	Val  int
+	val  int
 }
 
 func main() {
-	node1 := Node{Next: nil, Val: 1}
-	node2 := Node{Next: nil, Val: 2}
+	node1 := Node{Next: nil, val: 1}
+	node2 := Node{Next: nil, val: 2}
 	node1.Next = &node2
 
 	original := &Example{
-		Flag:     true,
+		flag:     true,
 		Node1:    node1,
 		Node2:    node2,
 		IntSlice: []int{3, 4, 5},

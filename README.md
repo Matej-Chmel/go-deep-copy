@@ -6,6 +6,11 @@ Create a deep copy of any variable.
 go get github.com/Matej-Chmel/go-deep-copy@v1.0.3
 ```
 
+## Features
+- Uses 2 stacks to copy values instead of recursion
+- Copy built-in and composite types
+- Copy both exported and unexported fields of a struct (thanks [brunoga](https://github.com/brunoga/deep/tree/92c699d4e2e304e7c4a4d4138817a8c96e8abb72))
+
 ## Example
 ```go
 package main
@@ -17,7 +22,7 @@ import (
 )
 
 type Example struct {
-	Flag     bool
+	flag     bool
 	Node1    Node
 	Node2    Node
 	IntSlice []int
@@ -25,16 +30,16 @@ type Example struct {
 
 type Node struct {
 	Next *Node
-	Val  int
+	val  int
 }
 
 func main() {
-	node1 := Node{Next: nil, Val: 1}
-	node2 := Node{Next: nil, Val: 2}
+	node1 := Node{Next: nil, val: 1}
+	node2 := Node{Next: nil, val: 2}
 	node1.Next = &node2
 
 	original := &Example{
-		Flag:     true,
+		flag:     true,
 		Node1:    node1,
 		Node2:    node2,
 		IntSlice: []int{3, 4, 5},
@@ -69,17 +74,17 @@ func main() {
 ### Output
 ```none
 Original at  0xc00009a040
-&{Flag:true Node1:{Next:0xc00008a030 Val:1} Node2:{Next:<nil> Val:2} IntSlice:[3 4 5]}
+&{flag:true Node1:{Next:0xc00008a030 val:1} Node2:{Next:<nil> val:2} IntSlice:[3 4 5]}
 
 Deep copy at 0xc00009a080
-&{Flag:true Node1:{Next:0xc00008a070 Val:1} Node2:{Next:<nil> Val:2} IntSlice:[3 4 5]}
+&{flag:true Node1:{Next:0xc00008a070 val:1} Node2:{Next:<nil> val:2} IntSlice:[3 4 5]}
 
 Copy and original live on different memory addresses
 
 Copy and original are detached, changing one doesn't affect the other
 
 Original
-&{Flag:true Node1:{Next:<nil> Val:1} Node2:{Next:<nil> Val:2} IntSlice:[3 4 5 100]}
+&{flag:true Node1:{Next:<nil> val:1} Node2:{Next:<nil> val:2} IntSlice:[3 4 5 100]}
 Deep copy
-&{Flag:true Node1:{Next:0xc00008a070 Val:1} Node2:{Next:<nil> Val:2} IntSlice:[3 4 5]}
+&{flag:true Node1:{Next:0xc00008a070 val:1} Node2:{Next:<nil> val:2} IntSlice:[3 4 5]}
 ```

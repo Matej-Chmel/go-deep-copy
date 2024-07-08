@@ -46,13 +46,12 @@ func newTester(t *testing.T) *tester {
 // if it's available
 func (t *tester) fail(skip int, format string, data ...any) {
 	_, _, line, ok := runtime.Caller(skip)
-	reason := fmt.Sprintf(format, data...)
 
 	if ok {
-		format = fmt.Sprintf("(line %d) %s", line, reason)
+		format = fmt.Sprintf("(line %d) %s", line, format)
 	}
 
-	t.Errorf(format, reason)
+	t.Errorf(format, data...)
 	t.failed = true
 }
 
@@ -69,6 +68,7 @@ func boolStr(b bool) string {
 	return "NOT"
 }
 
+// Check deep copy of a stack-allocated value
 func check[T any](data T, t *tester) {
 	checkImpl(func(d T) string {
 		return fmt.Sprintf("%v", d)
@@ -99,7 +99,7 @@ func checkImpl[T any](conv func(T) string, data T, t *tester) {
 	expected := conv(data)
 
 	if actual != expected {
-		t.fail(3, "%s != %s", actual, expected)
+		t.fail(3, "\n\n%s\n\n!=\n\n%s", actual, expected)
 	}
 }
 
@@ -183,12 +183,18 @@ func TestStructs(ot *testing.T) {
 	t := newTester(ot)
 	example := Example{12, "hello", '*'}
 	nested := NestedExample{Example{34, "world", '%'}, "super", nil}
+	nestedUx := NestedUnexported{Unexported{1_000_000, "ok"}, 'R'}
 	slice := SliceExample{[]uint16{40, 20}, []int{1, 2, 3}}
+	ux := Unexported{-127, "unexported"}
 
 	check(example, t)
 	checkPointer(example, t)
 	check(nested, t)
 	checkPointer(nested, t)
+	check(nestedUx, t)
+	checkPointer(nestedUx, t)
 	check(slice, t)
 	checkPointer(slice, t)
+	check(ux, t)
+	checkPointer(ux, t)
 }
