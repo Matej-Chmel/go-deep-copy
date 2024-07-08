@@ -6,52 +6,112 @@ import (
 	"testing"
 	"unsafe"
 
-	ats "github.com/Matej-Chmel/go-any-to-string"
 	gd "github.com/Matej-Chmel/go-deep-copy"
 )
 
-func checkImpl[T any](data T, t *testing.T) {
-	dataCopy := gd.DeepCopy(data)
-
-	if gd.IsCopyable(data) {
-		dataAddr := unsafe.Pointer(&data)
-		copyAddr := unsafe.Pointer(&dataCopy)
-
-		if dataAddr == copyAddr {
-			throw(t, 3, "Same address %p", dataAddr)
-		}
-	}
-
-	actual := ats.AnyToString(dataCopy)
-	expected := ats.AnyToString(data)
-
-	if actual == expected {
-		return
-	}
-
-	throw(t, 3, "%s != %s", actual, expected)
+type Example struct {
+	A int
+	B string
+	C rune
 }
 
-func check[T any](data T, t *testing.T) {
-	checkImpl(data, t)
+type NestedExample struct {
+	Example
+	B    string
+	Next *NestedExample
 }
 
-func checkPtr[T any](data T, t *testing.T) {
-	checkImpl(&data, t)
+type NestedUnexported struct {
+	Unexported
+	C rune
 }
 
-func throw(t *testing.T, skip int, format string, data ...any) {
+type SliceExample struct {
+	Bytes []uint16
+	Ints  []int
+}
+
+// Wrapper around original test type
+type tester struct {
+	failed bool
+	*testing.T
+}
+
+// Constructs new tester
+func newTester(t *testing.T) *tester {
+	return &tester{failed: false, T: t}
+}
+
+// Fail test with a formatted message containing the line number
+// if it's available
+func (t *tester) fail(skip int, format string, data ...any) {
 	_, _, line, ok := runtime.Caller(skip)
 	reason := fmt.Sprintf(format, data...)
 
 	if ok {
-		t.Errorf("(line %d) %s", line, reason)
-	} else {
-		t.Errorf("%s", reason)
+		format = fmt.Sprintf("(line %d) %s", line, reason)
+	}
+
+	t.Errorf(format, reason)
+	t.failed = true
+}
+
+type Unexported struct {
+	a int
+	B string
+}
+
+func boolStr(b bool) string {
+	if b {
+		return ""
+	}
+
+	return "NOT"
+}
+
+func check[T any](data T, t *tester) {
+	checkImpl(func(d T) string {
+		return fmt.Sprintf("%v", d)
+	}, data, t)
+}
+
+// Create a deep copy of data and check whether
+// copy and original live on different memory addresses
+// and their string representations match
+func checkImpl[T any](conv func(T) string, data T, t *tester) {
+	if t.failed {
+		return
+	}
+
+	dataCopy := gd.DeepCopy(data)
+
+	if gd.IsCopyable(data) {
+		copyAddr := unsafe.Pointer(&dataCopy)
+		dataAddr := unsafe.Pointer(&data)
+
+		if dataAddr == copyAddr {
+			t.fail(3, "Same address %p", dataAddr)
+			return
+		}
+	}
+
+	actual := conv(dataCopy)
+	expected := conv(data)
+
+	if actual != expected {
+		t.fail(3, "%s != %s", actual, expected)
 	}
 }
 
-func TestArrays(t *testing.T) {
+// Create pointer to data and check deep copy of that pointer
+func checkPointer[T any](data T, t *tester) {
+	checkImpl(func(d *T) string {
+		return fmt.Sprintf("%v", *d)
+	}, &data, t)
+}
+
+func TestArrays(ot *testing.T) {
+	t := newTester(ot)
 	check([]byte{65, 66, 67}, t)
 	check([]float64{65.3, 66.4, 67.5}, t)
 	check([]int{12, 34, 56}, t)
@@ -59,7 +119,8 @@ func TestArrays(t *testing.T) {
 	check([...]string{"hello", "world"}, t)
 }
 
-func TestBasicTypes(t *testing.T) {
+func TestBasicTypes(ot *testing.T) {
+	t := newTester(ot)
 	check(false, t)
 	check(true, t)
 
@@ -88,92 +149,46 @@ func TestBasicTypes(t *testing.T) {
 	check(unsafe.Pointer(uintptr(0x45678902)), t)
 }
 
-func TestPtr(t *testing.T) {
-	checkPtr(false, t)
-	checkPtr(true, t)
+func TestPointer(ot *testing.T) {
+	t := newTester(ot)
+	checkPointer(false, t)
+	checkPointer(true, t)
 
-	checkPtr(make(chan int), t)
+	checkPointer(make(chan int), t)
 
-	checkPtr(1+1i, t)
-	checkPtr(2.4567+3.45678i, t)
+	checkPointer(1+1i, t)
+	checkPointer(2.4567+3.45678i, t)
 
-	checkPtr(float64(12.3456), t)
-	checkPtr(128.993456, t)
+	checkPointer(float64(12.3456), t)
+	checkPointer(128.993456, t)
 
-	checkPtr(int8(-128), t)
-	checkPtr(int16(-32768), t)
-	checkPtr(int32(-65536), t)
-	checkPtr(int64(-128000), t)
+	checkPointer(int8(-128), t)
+	checkPointer(int16(-32768), t)
+	checkPointer(int32(-65536), t)
+	checkPointer(int64(-128000), t)
 
-	checkPtr("hello world", t)
-	checkPtr("hi 123", t)
+	checkPointer("hello world", t)
+	checkPointer("hi 123", t)
 
-	checkPtr(uint8(255), t)
-	checkPtr(uint16(65535), t)
-	checkPtr(uint32(128000), t)
-	checkPtr(uint64(10030030030303333333), t)
+	checkPointer(uint8(255), t)
+	checkPointer(uint16(65535), t)
+	checkPointer(uint32(128000), t)
+	checkPointer(uint64(10030030030303333333), t)
 
-	checkPtr(uintptr(0x12345678), t)
-	checkPtr(unsafe.Pointer(uintptr(0x45678902)), t)
+	checkPointer(uintptr(0x12345678), t)
+	checkPointer(unsafe.Pointer(uintptr(0x45678902)), t)
 }
 
-type Example struct {
-	A int
-	B string
-	C rune
-}
+func TestStructs(ot *testing.T) {
+	t := newTester(ot)
+	example := Example{12, "hello", '*'}
+	nested := NestedExample{Example{34, "world", '%'}, "super", nil}
+	slice := SliceExample{[]uint16{40, 20}, []int{1, 2, 3}}
 
-type NestedExample struct {
-	Example
-	B string
-	C rune
-}
-
-type SliceExample struct {
-	Bytes []uint16
-	Ints  []int
-}
-
-func TestStruct(t *testing.T) {
-	a := Example{12, "hello", '*'}
-	b := NestedExample{Example{34, "world", '%'}, "super", 'X'}
-	c := SliceExample{[]uint16{40, 20}, []int{1, 2, 3}}
-
-	check(a, t)
-	checkPtr(a, t)
-	check(b, t)
-	checkPtr(b, t)
-	check(c, t)
-	checkPtr(c, t)
-}
-
-type Unexported struct {
-	a int
-	B string
-}
-
-func TestExport(t *testing.T) {
-	e := Example{A: 1, B: "hello", C: 'a'}
-	u := Unexported{a: 1, B: "hello"}
-
-	eX := gd.IsFullyExported(e)
-	eXP := gd.IsFullyExported(&e)
-	uX := gd.IsFullyExported(u)
-	uXP := gd.IsFullyExported(&u)
-
-	if !eX {
-		throw(t, 1, "Example should be fully exported")
-	}
-
-	if !eXP {
-		throw(t, 1, "&Example should be fully exported")
-	}
-
-	if uX {
-		throw(t, 1, "Unexported should NOT be fully exported")
-	}
-
-	if uXP {
-		throw(t, 1, "&Unexported should NOT be fully exported")
-	}
+	check(example, t)
+	checkPointer(example, t)
+	check(nested, t)
+	checkPointer(nested, t)
+	check(slice, t)
+	checkPointer(slice, t)
 }

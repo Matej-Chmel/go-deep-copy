@@ -1,13 +1,3 @@
-# Deep copy
-Create a deep copy of any variable.
-
-## Installation
-```bash
-go get github.com/Matej-Chmel/go-deep-copy@v1.0.3
-```
-
-## Example
-```go
 package main
 
 import (
@@ -64,22 +54,3 @@ func main() {
 		fmt.Printf("Deep copy\n%s\n", fmt.Sprintf("%+v", aCopy))
 	}
 }
-```
-
-### Output
-```none
-Original at  0xc00009a040
-&{Flag:true Node1:{Next:0xc00008a030 Val:1} Node2:{Next:<nil> Val:2} IntSlice:[3 4 5]}
-
-Deep copy at 0xc00009a080
-&{Flag:true Node1:{Next:0xc00008a070 Val:1} Node2:{Next:<nil> Val:2} IntSlice:[3 4 5]}
-
-Copy and original live on different memory addresses
-
-Copy and original are detached, changing one doesn't affect the other
-
-Original
-&{Flag:true Node1:{Next:<nil> Val:1} Node2:{Next:<nil> Val:2} IntSlice:[3 4 5 100]}
-Deep copy
-&{Flag:true Node1:{Next:0xc00008a070 Val:1} Node2:{Next:<nil> Val:2} IntSlice:[3 4 5]}
-```
