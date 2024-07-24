@@ -3,7 +3,7 @@ Create a deep copy of any variable.
 
 ## Installation
 ```bash
-go get github.com/Matej-Chmel/go-deep-copy@v1.0.3
+go get github.com/Matej-Chmel/go-deep-copy@v1.0.5
 ```
 
 ## Features
